@@ -1,9 +1,14 @@
-import { useState } from 'react'
+// ─────────────────────────────────────────────────────────────────────────────
+// ReportComplaintPage — 4-step wizard form for filing complaints
+// Wires together: Firestore saving, Image upload, GPS geolocation,
+//                 AI analysis (Gemini), and Success Screen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  AlertCircle, Upload, Send, ChevronRight, Info,
-  CheckCircle2, Building2, Droplets, Zap, Phone,
-  Trash2, Route, Shield, MoreHorizontal,
+  AlertCircle, ChevronRight, ChevronLeft, Info,
+  CheckCircle2, Building2, Eye, ShieldAlert,
 } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageSections'
 import Card from '../components/ui/Card'
@@ -11,29 +16,20 @@ import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Badge from '../components/ui/Badge'
 
-// ── Department Data ──────────────────────────────────────────────────────────
+// Custom Hooks
+import { useImageUpload } from '../hooks/useImageUpload'
+import { useGeolocation } from '../hooks/useGeolocation'
 
-const DEPARTMENTS = [
-  { id: 'municipal', label: 'Municipal Corporation', icon: Building2 },
-  { id: 'water', label: 'Water Supply', icon: Droplets },
-  { id: 'electricity', label: 'Electricity Board', icon: Zap },
-  { id: 'telecom', label: 'Telecom / BSNL', icon: Phone },
-  { id: 'sanitation', label: 'Sanitation & Waste', icon: Trash2 },
-  { id: 'roads', label: 'Roads & Transport', icon: Route },
-  { id: 'police', label: 'Police / Law & Order', icon: Shield },
-  { id: 'other', label: 'Other Department', icon: MoreHorizontal },
-]
+// Components
+import ComplaintCategoryGrid, { getCategoryById } from '../components/complaint/ComplaintCategoryGrid'
+import ImageUploader from '../components/complaint/ImageUploader'
+import LocationPicker from '../components/complaint/LocationPicker'
+import AISummaryPanel from '../components/complaint/AISummaryPanel'
+import SuccessScreen from '../components/complaint/SuccessScreen'
 
-const COMPLAINT_TYPES = [
-  'Service not delivered',
-  'Incorrect charge / billing',
-  'Corruption / bribery demand',
-  'Staff misconduct',
-  'Delay in processing',
-  'Technical issue with portal',
-  'Wrong information provided',
-  'Other',
-]
+// Services
+import { saveComplaint, uploadComplaintImage, detectPriorityLocally } from '../services/complaints'
+import { analyzeComplaint } from '../services/gemini'
 
 const STEPS = [
   { num: 1, label: 'Department' },
@@ -42,361 +38,458 @@ const STEPS = [
   { num: 4, label: 'Review' },
 ]
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function StepIndicator({ currentStep }) {
-  return (
-    <nav aria-label="Complaint filing progress" className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hidden">
-      {STEPS.map(({ num, label }, index) => (
-        <div key={num} className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <div
-              className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-all ${
-                currentStep > num
-                  ? 'bg-accent-500 text-white'
-                  : currentStep === num
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-surface-800 text-surface-500 border border-surface-700'
-              }`}
-              aria-current={currentStep === num ? 'step' : undefined}
-            >
-              {currentStep > num ? <CheckCircle2 size={14} /> : num}
-            </div>
-            <span
-              className={`text-sm font-medium ${
-                currentStep >= num ? 'text-white' : 'text-surface-500'
-              }`}
-            >
-              {label}
-            </span>
-          </div>
-          {index < STEPS.length - 1 && (
-            <div
-              className={`h-px w-8 md:w-16 ${
-                currentStep > num ? 'bg-accent-500' : 'bg-surface-700'
-              }`}
-              aria-hidden="true"
-            />
-          )}
-        </div>
-      ))}
-    </nav>
-  )
-}
-
-// ── Page Component ────────────────────────────────────────────────────────────
-
 export default function ReportComplaintPage() {
-  const [step, setStep] = useState(1)
-  const [formData, setFormData] = useState({
-    department: '',
-    complaintType: '',
-    title: '',
-    description: '',
-    location: '',
-    files: [],
-    name: '',
-    phone: '',
-    email: '',
-    anonymous: false,
-  })
-  const [submitted, setSubmitted] = useState(false)
-  const [complaintId] = useState(`SB${Date.now().toString().slice(-8)}`)
+  // ── Form States ────────────────────────────────────────────────────────────
+  const [currentStep, setCurrentStep] = useState(1)
+  const [category, setCategory] = useState('')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [manualAddress, setManualAddress] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
 
-  const updateForm = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+  // ── Success State ──────────────────────────────────────────────────────────
+  const [successData, setSuccessData] = useState(null)
+
+  // ── Hooks ──────────────────────────────────────────────────────────────────
+  const {
+    file,
+    preview,
+    error: imageError,
+    isDragging,
+    handleFileChange,
+    handleDrop,
+    handleDragOver,
+    handleDragLeave,
+    clearImage,
+  } = useImageUpload()
+
+  const {
+    location,
+    loading: locationLoading,
+    error: locationError,
+    getLocation,
+    clearLocation,
+  } = useGeolocation()
+
+  // ── AI Analysis State ──────────────────────────────────────────────────────
+  const [aiAnalysis, setAiAnalysis] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+
+  // Trigger Gemini analysis when moving to Step 4 (Review)
+  const triggerAIAnalysis = useCallback(async () => {
+    setAiLoading(true)
+    setAiAnalysis(null)
+    try {
+      const result = await analyzeComplaint({
+        title,
+        description,
+        category: getCategoryById(category)?.label || category,
+        location: location?.displayString || manualAddress,
+      })
+      if (result) {
+        setAiAnalysis(result)
+      } else {
+        // Fallback locally if Gemini analysis returns null or fails
+        const fallbackPriority = detectPriorityLocally(description, category)
+        setAiAnalysis({
+          summary: description,
+          priority: fallbackPriority,
+          priorityReason: 'Detected locally based on keywords.',
+          suggestedDepartment: getCategoryById(category)?.label || 'General',
+          keywords: [category, 'grievance'],
+        })
+      }
+    } catch (err) {
+      console.error('AI Analysis failed:', err)
+    } finally {
+      setAiLoading(false)
+    }
+  }, [title, description, category, location, manualAddress])
+
+  useEffect(() => {
+    if (currentStep === 4) {
+      triggerAIAnalysis()
+    }
+  }, [currentStep, triggerAIAnalysis])
+
+  // ── Step Navigation ────────────────────────────────────────────────────────
+  const validateStep = () => {
+    setFormError('')
+    if (currentStep === 1 && !category) {
+      setFormError('Please select a department/category to proceed.')
+      return false
+    }
+    if (currentStep === 2) {
+      if (!title.trim()) {
+        setFormError('Please enter a complaint title.')
+        return false
+      }
+      if (!description.trim()) {
+        setFormError('Please describe the issue in detail.')
+        return false
+      }
+      if (!location && !manualAddress.trim()) {
+        setFormError('Please provide a location using GPS or manual entry.')
+        return false
+      }
+    }
+    return true
   }
 
-  const handleSubmit = (e) => {
+  const handleNext = () => {
+    if (validateStep()) {
+      setCurrentStep((prev) => Math.min(prev + 1, STEPS.length))
+    }
+  }
+
+  const handleBack = () => {
+    setFormError('')
+    setCurrentStep((prev) => Math.max(prev - 1, 1))
+  }
+
+  // ── Reset Form ─────────────────────────────────────────────────────────────
+  const handleReset = () => {
+    setCurrentStep(1)
+    setCategory('')
+    setTitle('')
+    setDescription('')
+    setManualAddress('')
+    clearImage()
+    clearLocation()
+    setAiAnalysis(null)
+    setSuccessData(null)
+    setFormError('')
+  }
+
+  // ── Submit Complaint ───────────────────────────────────────────────────────
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // TODO: Submit to Firestore
-    setSubmitted(true)
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+    setFormError('')
+
+    try {
+      const generatedId = `SB${Date.now().toString().slice(-8)}`
+      let imageUrl = null
+
+      // 1. Upload evidence image if present
+      if (file) {
+        imageUrl = await uploadComplaintImage(file, generatedId)
+      }
+
+      // 2. Prepare payload
+      const priority = aiAnalysis?.priority || detectPriorityLocally(description, category)
+      const complaintPayload = {
+        complaintId: generatedId,
+        title,
+        description,
+        category: getCategoryById(category)?.label || category,
+        location: location
+          ? {
+              lat: location.lat,
+              lng: location.lng,
+              address: location.displayString,
+            }
+          : {
+              address: manualAddress,
+            },
+        imageUrl,
+        priority,
+        aiSummary: aiAnalysis?.summary || description.slice(0, 100) + '...',
+        timeline: [
+          {
+            action: 'Complaint Filed',
+            actor: 'Citizen',
+            status: 'done',
+            date: new Date().toISOString(),
+          },
+        ],
+      }
+
+      // 3. Save to database/backend
+      await saveComplaint(complaintPayload)
+
+      // 4. Render success view
+      setSuccessData({
+        complaintId: generatedId,
+        category: getCategoryById(category)?.label || category,
+        priority,
+      })
+    } catch (err) {
+      console.error('Submission failed:', err)
+      setFormError('Failed to file complaint. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  if (submitted) {
+  // Render success screen if successfully submitted
+  if (successData) {
     return (
-      <main className="min-h-screen bg-surface-950">
-        <PageHeader
-          title="Complaint Filed!"
-          subtitle="Your grievance has been registered successfully."
-          breadcrumbs={[{ label: 'Report Complaint' }]}
-        />
-        <div className="page-container py-16 max-w-2xl">
-          <div className="glass-card p-10 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-accent-500/20 border border-accent-500/30 flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 size={40} className="text-accent-400" />
-            </div>
-            <Badge variant="accent" dot className="mb-4">Complaint Registered</Badge>
-            <h2 className="text-2xl font-display font-bold text-white mb-2">
-              Complaint ID: <span className="text-primary-400">{complaintId}</span>
-            </h2>
-            <p className="text-surface-400 mb-8">
-              Save this ID to track your complaint status. You will receive SMS/email updates as your complaint progresses.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Link to={`/track-complaint?id=${complaintId}`} className="btn-primary justify-center">
-                Track Complaint
-                <ChevronRight size={16} />
-              </Link>
-              <Link to="/dashboard" className="btn-secondary justify-center">
-                Go to Dashboard
-              </Link>
-            </div>
-          </div>
-        </div>
-      </main>
+      <SuccessScreen
+        complaintId={successData.complaintId}
+        category={successData.category}
+        priority={successData.priority}
+        onNewComplaint={handleReset}
+      />
     )
   }
 
   return (
-    <main className="min-h-screen bg-surface-950">
+    <main className="min-h-screen bg-surface-950 pt-20">
       <PageHeader
         title="Report a Complaint"
-        subtitle="File a grievance against any government department. We ensure every complaint reaches the right authority."
+        subtitle="Submit a community issue directly to the concerned authority. Keep track of resolving steps in real-time."
         breadcrumbs={[{ label: 'Report Complaint' }]}
-        badge="Grievance Portal"
+        badge="Direct Citizen Portal 🇮🇳"
       />
 
       <div className="page-container py-10">
         <div className="max-w-3xl mx-auto">
-          <StepIndicator currentStep={step} />
-
-          <form onSubmit={handleSubmit} noValidate>
-
-            {/* ── Step 1: Department ── */}
-            {step === 1 && (
-              <Card>
-                <h2 className="text-xl font-display font-bold text-white mb-2">
-                  Select Department
-                </h2>
-                <p className="text-surface-400 text-sm mb-6">
-                  Choose the government department your complaint is about.
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" role="group" aria-label="Select department">
-                  {DEPARTMENTS.map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => updateForm('department', id)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border text-center transition-all duration-200 ${
-                        formData.department === id
-                          ? 'bg-primary-500/20 border-primary-500/50 text-primary-300'
-                          : 'bg-surface-800/50 border-surface-700 text-surface-400 hover:text-white hover:border-surface-600'
-                      }`}
-                      aria-pressed={formData.department === id}
-                      aria-label={label}
-                    >
-                      <Icon size={22} />
-                      <span className="text-xs font-medium leading-tight">{label}</span>
-                    </button>
-                  ))}
+          {/* Step Indicator Bar */}
+          <div className="mb-8 flex justify-between items-center bg-surface-900/60 border border-surface-800/80 px-6 py-4 rounded-2xl backdrop-blur-sm">
+            {STEPS.map((step) => {
+              const isCompleted = step.num < currentStep
+              const isActive = step.num === currentStep
+              return (
+                <div key={step.num} className="flex items-center gap-2">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200 ${
+                      isCompleted
+                        ? 'bg-accent-500 text-white'
+                        : isActive
+                        ? 'bg-primary-500 text-white shadow-glow-primary'
+                        : 'bg-surface-800 text-surface-400'
+                    }`}
+                  >
+                    {isCompleted ? '✓' : step.num}
+                  </div>
+                  <span
+                    className={`text-xs font-semibold hidden md:inline ${
+                      isActive ? 'text-white' : 'text-surface-400'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                  {step.num < STEPS.length && (
+                    <div className="w-8 h-[2px] bg-surface-800 hidden md:block mx-1" />
+                  )}
                 </div>
-                <Button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  disabled={!formData.department}
-                  fullWidth
-                >
-                  Continue
-                  <ChevronRight size={16} />
-                </Button>
+              )
+            })}
+          </div>
+
+          {/* Form Error Banner */}
+          {formError && (
+            <div className="mb-6 flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl text-sm">
+              <AlertCircle size={16} className="shrink-0" />
+              {formError}
+            </div>
+          )}
+
+          {/* Step Contents */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* STEP 1: Department/Category */}
+            {currentStep === 1 && (
+              <Card>
+                <div className="p-2 space-y-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white mb-1">Select Department</h2>
+                    <p className="text-surface-400 text-xs">
+                      Choose the category most relevant to your grievance.
+                    </p>
+                  </div>
+                  <ComplaintCategoryGrid selected={category} onSelect={setCategory} />
+                </div>
               </Card>
             )}
 
-            {/* ── Step 2: Complaint Details ── */}
-            {step === 2 && (
+            {/* STEP 2: Issue Details & Location */}
+            {currentStep === 2 && (
               <Card>
-                <h2 className="text-xl font-display font-bold text-white mb-2">
-                  Complaint Details
-                </h2>
-                <p className="text-surface-400 text-sm mb-6">
-                  Describe your complaint clearly. More details help faster resolution.
-                </p>
-
-                <div className="space-y-5">
-                  {/* Complaint Type */}
+                <div className="p-2 space-y-6">
                   <div>
-                    <label className="form-label" htmlFor="complaint-type">
-                      Complaint Type <span className="text-primary-400">*</span>
-                    </label>
-                    <select
-                      id="complaint-type"
-                      value={formData.complaintType}
-                      onChange={(e) => updateForm('complaintType', e.target.value)}
-                      className="form-input"
-                      required
-                      aria-required="true"
-                    >
-                      <option value="">Select complaint type...</option>
-                      {COMPLAINT_TYPES.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <Input
-                    id="complaint-title"
-                    label="Complaint Title"
-                    placeholder="Brief title for your complaint"
-                    value={formData.title}
-                    onChange={(e) => updateForm('title', e.target.value)}
-                    required
-                  />
-
-                  <div>
-                    <label className="form-label" htmlFor="complaint-description">
-                      Detailed Description <span className="text-primary-400">*</span>
-                    </label>
-                    <textarea
-                      id="complaint-description"
-                      value={formData.description}
-                      onChange={(e) => updateForm('description', e.target.value)}
-                      placeholder="Describe your issue in detail. Include dates, names, and specific incidents..."
-                      rows={5}
-                      className="form-input resize-none"
-                      required
-                      aria-required="true"
-                    />
-                    <p className="text-surface-600 text-xs mt-1">
-                      Minimum 50 characters. Currently: {formData.description.length}
+                    <h2 className="text-lg font-bold text-white mb-1">Complaint Details</h2>
+                    <p className="text-surface-400 text-xs">
+                      Describe the issue clearly. Provide details to help the officer understand.
                     </p>
                   </div>
 
-                  <Input
-                    id="complaint-location"
-                    label="Location / Address"
-                    placeholder="Where did this issue occur?"
-                    value={formData.location}
-                    onChange={(e) => updateForm('location', e.target.value)}
-                  />
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <Button type="button" variant="ghost" onClick={() => setStep(1)}>
-                    Back
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => setStep(3)}
-                    disabled={!formData.complaintType || !formData.title || formData.description.length < 10}
-                    fullWidth
-                  >
-                    Continue
-                    <ChevronRight size={16} />
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* ── Step 3: Evidence ── */}
-            {step === 3 && (
-              <Card>
-                <h2 className="text-xl font-display font-bold text-white mb-2">
-                  Add Evidence
-                </h2>
-                <p className="text-surface-400 text-sm mb-6">
-                  Upload photos, documents, or screenshots to support your complaint (optional but recommended).
-                </p>
-
-                {/* Upload zone */}
-                <div
-                  className="border-2 border-dashed border-surface-700 hover:border-primary-500/50 rounded-2xl p-10 text-center cursor-pointer transition-colors mb-6"
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Upload files"
-                >
-                  <Upload size={40} className="text-surface-600 mx-auto mb-3" aria-hidden="true" />
-                  <p className="text-surface-300 font-medium mb-1">Drop files here or click to upload</p>
-                  <p className="text-surface-500 text-sm">JPG, PNG, PDF up to 10MB each • Max 5 files</p>
-                </div>
-
-                <div className="glass-card p-4 flex items-start gap-3 mb-6">
-                  <Info size={16} className="text-primary-400 mt-0.5 shrink-0" aria-hidden="true" />
-                  <p className="text-surface-400 text-xs leading-relaxed">
-                    All evidence is encrypted and stored securely. Only the concerned department
-                    authority and relevant officials will have access to your files.
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <Button type="button" variant="ghost" onClick={() => setStep(2)}>
-                    Back
-                  </Button>
-                  <Button type="button" onClick={() => setStep(4)} fullWidth>
-                    Continue
-                    <ChevronRight size={16} />
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* ── Step 4: Review & Submit ── */}
-            {step === 4 && (
-              <div className="space-y-4">
-                <Card>
-                  <h2 className="text-xl font-display font-bold text-white mb-6">
-                    Your Contact Information
-                  </h2>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <input
-                        type="checkbox"
-                        id="anonymous"
-                        checked={formData.anonymous}
-                        onChange={(e) => updateForm('anonymous', e.target.checked)}
-                        className="w-4 h-4 rounded text-primary-500"
-                      />
-                      <label htmlFor="anonymous" className="text-surface-300 text-sm">
-                        Submit anonymously (identity will not be shared with department)
+                    <Input
+                      label="Complaint Title"
+                      id="complaint-title"
+                      placeholder="e.g. Water logging in main street / Street light not functioning"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      required
+                    />
+
+                    <div className="relative">
+                      <label htmlFor="complaint-desc" className="form-label">
+                        Description / Detailed Grievance
                       </label>
+                      <textarea
+                        id="complaint-desc"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Provide detailed information including how long the issue has persisted..."
+                        className="form-input min-h-[120px] resize-y"
+                        required
+                      />
                     </div>
 
-                    {!formData.anonymous && (
-                      <>
-                        <Input id="complainant-name" label="Full Name" value={formData.name} onChange={(e) => updateForm('name', e.target.value)} placeholder="As per Aadhaar" />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <Input id="complainant-phone" label="Mobile Number" type="tel" value={formData.phone} onChange={(e) => updateForm('phone', e.target.value)} placeholder="10-digit mobile number" />
-                          <Input id="complainant-email" label="Email Address" type="email" value={formData.email} onChange={(e) => updateForm('email', e.target.value)} placeholder="For status updates" />
+                    <LocationPicker
+                      location={location}
+                      loading={locationLoading}
+                      error={locationError}
+                      onGetLocation={getLocation}
+                      onClear={clearLocation}
+                      manualAddress={manualAddress}
+                      onManualChange={setManualAddress}
+                    />
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* STEP 3: Evidence Upload */}
+            {currentStep === 3 && (
+              <Card>
+                <div className="p-2 space-y-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white mb-1">Upload Evidence (Optional)</h2>
+                    <p className="text-surface-400 text-xs mb-3">
+                      Adding a clear photo helps verify and prioritize the complaint quickly.
+                    </p>
+                  </div>
+
+                  <ImageUploader
+                    file={file}
+                    preview={preview}
+                    error={imageError}
+                    isDragging={isDragging}
+                    onChange={handleFileChange}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onClear={clearImage}
+                  />
+                </div>
+              </Card>
+            )}
+
+            {/* STEP 4: Review and AI Summary */}
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                {/* AI Summary and Auto-Priority Panel */}
+                <AISummaryPanel
+                  analysis={aiAnalysis}
+                  loading={aiLoading}
+                  onRetry={triggerAIAnalysis}
+                />
+
+                {/* Manual Review Details Card */}
+                <Card>
+                  <div className="p-2 space-y-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-white mb-1">Final Review</h2>
+                      <p className="text-surface-400 text-xs">
+                        Review the details before submitting to the department.
+                      </p>
+                    </div>
+
+                    <div className="divide-y divide-surface-800 space-y-4 text-sm">
+                      <div className="flex justify-between pt-2">
+                        <span className="text-surface-500">Selected Department</span>
+                        <span className="text-white font-medium">
+                          {getCategoryById(category)?.label}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between pt-4">
+                        <span className="text-surface-500">Complaint Title</span>
+                        <span className="text-white font-medium text-right max-w-md truncate">
+                          {title}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col pt-4">
+                        <span className="text-surface-500 mb-1">Detailed Description</span>
+                        <p className="text-surface-200 bg-surface-800/40 border border-surface-700/50 p-3 rounded-xl whitespace-pre-wrap">
+                          {description}
+                        </p>
+                      </div>
+
+                      <div className="flex justify-between pt-4">
+                        <span className="text-surface-500">Location</span>
+                        <span className="text-white font-medium text-right max-w-sm">
+                          {location ? location.displayString : manualAddress}
+                        </span>
+                      </div>
+
+                      {preview && (
+                        <div className="pt-4 flex items-center justify-between">
+                          <span className="text-surface-500">Evidence Image</span>
+                          <img
+                            src={preview}
+                            alt="Evidence thumbnail"
+                            className="w-16 h-16 rounded-xl object-cover border border-surface-700"
+                          />
                         </div>
-                      </>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </Card>
 
-                {/* Summary */}
-                <Card>
-                  <h3 className="font-semibold text-white mb-4">Complaint Summary</h3>
-                  <dl className="space-y-3 text-sm">
-                    {[
-                      { label: 'Department', value: DEPARTMENTS.find((d) => d.id === formData.department)?.label },
-                      { label: 'Type', value: formData.complaintType },
-                      { label: 'Title', value: formData.title },
-                      { label: 'Location', value: formData.location || 'Not specified' },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="flex justify-between gap-4">
-                        <dt className="text-surface-500">{label}</dt>
-                        <dd className="text-surface-200 text-right">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </Card>
-
-                <div className="flex gap-3">
-                  <Button type="button" variant="ghost" onClick={() => setStep(3)}>
-                    Back
-                  </Button>
-                  <Button type="submit" variant="accent" fullWidth>
-                    <Send size={16} />
-                    Submit Complaint
-                  </Button>
+                {/* Disclaimer banner */}
+                <div className="flex gap-3 p-4 bg-primary-500/5 border border-primary-500/25 rounded-2xl text-xs text-surface-400 leading-relaxed">
+                  <Eye size={16} className="text-primary-400 shrink-0 mt-0.5" />
+                  <span>
+                    By submitting this complaint, you verify that the information is true and accurate.
+                    Smart Bharat will log your IP address and share the information with respective officers.
+                  </span>
                 </div>
-
-                <p className="text-surface-600 text-xs text-center">
-                  By submitting, you agree that the information provided is accurate.
-                  False complaints are subject to legal action.
-                </p>
               </div>
             )}
+
+            {/* Navigation buttons */}
+            <div className="flex justify-between items-center gap-4">
+              {currentStep > 1 ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleBack}
+                  disabled={isSubmitting}
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </Button>
+              ) : (
+                <div />
+              )}
+
+              {currentStep < STEPS.length ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleNext}
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="accent"
+                  disabled={isSubmitting || aiLoading}
+                >
+                  {isSubmitting ? 'Filing Complaint...' : 'Submit Complaint'}
+                </Button>
+              )}
+            </div>
           </form>
         </div>
       </div>

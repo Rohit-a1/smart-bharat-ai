@@ -275,3 +275,73 @@ export function getErrorMessage(error) {
   if (error?.name === 'AbortError') return ''   // silent — user cancelled
   return '❌ An unexpected error occurred. Please try again.'
 }
+
+// ── Complaint Analysis ────────────────────────────────────────────────────────
+/**
+ * Use Gemini to analyze a complaint and return structured JSON with:
+ *   - summary: concise 2-3 sentence professional summary
+ *   - priority: 'High' | 'Medium' | 'Low'
+ *   - priorityReason: one sentence justifying the priority
+ *   - suggestedDepartment: best department to route to
+ *   - keywords: array of 3-5 key tags
+ *
+ * Falls back to null on any error so the form can still submit.
+ *
+ * @param {{ title, description, category, location }} complaint
+ * @returns {Promise<{summary, priority, priorityReason, suggestedDepartment, keywords}|null>}
+ */
+export async function analyzeComplaint({ title, description, category, location }) {
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'demo_gemini_key_replace_me') return null
+
+  const prompt = `You are a government grievance analyst for India. Analyze the following citizen complaint and return a JSON object only (no markdown, no explanation).
+
+Complaint Title: ${title}
+Category: ${category}
+Location: ${location || 'Not specified'}
+Description: ${description}
+
+Return this exact JSON structure:
+{
+  "summary": "Professional 2-3 sentence summary of the complaint for government records",
+  "priority": "High|Medium|Low",
+  "priorityReason": "One sentence explaining the priority level",
+  "suggestedDepartment": "Most relevant government department name",
+  "keywords": ["keyword1", "keyword2", "keyword3"]
+}
+
+Priority rules:
+- High: safety risk, no water/power for >24h, sewage overflow, road accident risk, medical emergency
+- Medium: service degraded, delay >3 days, billing issue, staff misconduct
+- Low: minor inconvenience, information request, general feedback
+
+Respond with valid JSON only.`
+
+  try {
+    const url = `${BASE_URL}:generateContent?key=${GEMINI_API_KEY}`
+    const response = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature:     0.2,   // low temperature for structured output
+          maxOutputTokens: 512,
+        },
+      }),
+    })
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!text) return null
+
+    // Strip markdown code fences if present
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    return JSON.parse(cleaned)
+  } catch (err) {
+    console.warn('[GeminiService] Complaint analysis failed:', err.message)
+    return null
+  }
+}
