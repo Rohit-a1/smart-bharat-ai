@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Square, Mic, Paperclip, ArrowUp } from 'lucide-react'
+import { Square, Mic, Paperclip, ArrowUp } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const MAX_CHARS = 2000

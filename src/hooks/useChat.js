@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { streamMessage, sendMessage, getErrorMessage, GeminiError } from '../services/gemini'
+import { streamMessage, getErrorMessage } from '../services/gemini'
 
 // ── Message shape ─────────────────────────────────────────────────────────────
 // { id, role: 'user'|'assistant'|'error', content, timestamp, isStreaming? }

@@ -4,9 +4,9 @@
 
 import { useState } from 'react'
 import {
-  Plus, MessageSquare, Sparkles, Info, CheckCircle2,
+  Plus, Sparkles, Info, CheckCircle2,
   ChevronRight, Globe, BookOpen, AlertCircle, User,
-  Smartphone, Settings, Key, ExternalLink,
+  Smartphone, Key, ExternalLink,
 } from 'lucide-react'
 
 const CAPABILITIES = [

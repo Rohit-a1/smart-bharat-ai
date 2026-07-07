@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
 import {
-  LayoutDashboard, Bot, FileText, AlertCircle, ClipboardList,
-  CheckCircle2, Clock, TrendingUp, Bell, ChevronRight,
-  IndianRupee, Users, Shield, Award, ArrowUpRight,
+  Bot, FileText, AlertCircle, ClipboardList,
+  Clock, Bell,
+  IndianRupee, ArrowUpRight,
   Plus, Activity,
 } from 'lucide-react'
-import { Section, StatCard } from '../components/ui/PageSections'
+import { StatCard } from '../components/ui/PageSections'
 import Card, { CardHeader, CardTitle } from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 
@@ -91,7 +91,7 @@ export default function DashboardPage() {
                 Namaste, <span className="text-primary-400">Citizen!</span> 🙏
               </h1>
               <p className="text-surface-400">
-                Here's a summary of your activity and services.
+                Here&apos;s a summary of your activity and services.
               </p>
             </div>
             <div className="flex items-center gap-3">

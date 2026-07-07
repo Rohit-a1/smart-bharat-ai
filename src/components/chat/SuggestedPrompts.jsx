@@ -2,7 +2,7 @@
 // SuggestedPrompts — categorised quick-start prompt chips
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Wheat, Heart, Home, Briefcase, AlertCircle, BookOpen, Smartphone, User } from 'lucide-react'
+import { Briefcase, AlertCircle, BookOpen, Smartphone, User } from 'lucide-react'
 
 const CATEGORIES = [
   {

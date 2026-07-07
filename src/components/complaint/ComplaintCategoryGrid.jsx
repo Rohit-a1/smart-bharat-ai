@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // ─────────────────────────────────────────────────────────────────────────────
 // ComplaintCategoryGrid — icon grid for selecting complaint department/category
 // ─────────────────────────────────────────────────────────────────────────────

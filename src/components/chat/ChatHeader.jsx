@@ -2,7 +2,7 @@
 // ChatHeader — top bar of the chat window with model info and actions
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Bot, RotateCcw, Download, Info } from 'lucide-react'
+import { Bot, RotateCcw, Download } from 'lucide-react'
 
 export default function ChatHeader({ onNewChat, messageCount, isApiConfigured }) {
   const handleExport = () => {

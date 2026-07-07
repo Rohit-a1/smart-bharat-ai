@@ -2,7 +2,7 @@
 // AISummaryPanel — shows Gemini-generated complaint analysis
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Sparkles, Loader2, AlertTriangle, RefreshCw, Tag } from 'lucide-react'
+import { Sparkles, RefreshCw, Tag } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const PRIORITY_CONFIG = {

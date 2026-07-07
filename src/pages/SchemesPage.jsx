@@ -4,16 +4,15 @@
 //                 Gemini AI Scheme Recommendation Wizard.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import {
-  Search, Filter, ChevronRight, Users, IndianRupee,
+  Search, ChevronRight, Users, IndianRupee,
   Heart, Home, Briefcase, GraduationCap, Wheat, Droplets,
   CheckCircle2, ExternalLink, SlidersHorizontal, Sparkles,
-  BookOpen, Landmark, FileText, ArrowRight, RefreshCw, AlertCircle,
-  HelpCircle, Check, Info, ShieldCheck, MapPin, Activity, User, HelpCircle as HelpIcon,
+  Landmark, FileText, RefreshCw, AlertCircle,
+  Info, ShieldCheck,
 } from 'lucide-react'
-import { PageHeader, Section } from '../components/ui/PageSections'
+import { PageHeader } from '../components/ui/PageSections'
 import Card, { CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -697,7 +696,7 @@ export default function SchemesPage() {
                 </div>
                 <h3 className="text-white font-bold text-lg">Matching with Schemes...</h3>
                 <p className="text-surface-400 max-w-sm mx-auto text-xs leading-relaxed">
-                  Gemini AI is parsing national databases and checking your state's social welfare regulations.
+                  Gemini AI is parsing national databases and checking your state&apos;s social welfare regulations.
                 </p>
               </div>
             )}
@@ -751,7 +750,7 @@ export default function SchemesPage() {
                     <div className="glass-card p-12 text-center">
                       <Search size={36} className="text-surface-600 mx-auto mb-3" aria-hidden="true" />
                       <p className="text-surface-400 text-sm">
-                        No matches within recommendations for "{recSearch}".
+                        No matches within recommendations for &quot;{recSearch}&quot;.
                       </p>
                     </div>
                   ) : (

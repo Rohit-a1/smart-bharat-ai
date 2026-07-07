@@ -439,7 +439,7 @@ export default function HomePage() {
                   <Star key={i} size={14} className="text-primary-400 fill-primary-400" aria-hidden="true" />
                 ))}
               </div>
-              <p className="text-surface-300 text-sm leading-relaxed flex-1">"{text}"</p>
+              <p className="text-surface-300 text-sm leading-relaxed flex-1">&quot;{text}&quot;</p>
               <div className="flex items-center gap-3 pt-2 border-t border-white/10">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {avatar}

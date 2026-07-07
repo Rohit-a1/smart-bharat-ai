@@ -224,6 +224,7 @@ export async function streamMessage(userMessage, history = [], onChunk, signal) 
   let   fullText = ''
   let   buffer   = ''
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
@@ -415,7 +416,7 @@ Respond with a valid JSON array only.`
 /**
  * Local fallback recommendations if the API fails or is offline.
  */
-function getLocalRecommendedSchemes({ age, gender, state, occupation, income, category }) {
+function getLocalRecommendedSchemes({ age, occupation, income }) {
   const recommendations = []
   const annualIncome = Number(income) || 0
 

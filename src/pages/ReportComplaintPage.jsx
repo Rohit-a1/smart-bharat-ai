@@ -5,16 +5,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  AlertCircle, ChevronRight, ChevronLeft, Info,
-  CheckCircle2, Building2, Eye, ShieldAlert,
+  AlertCircle, ChevronRight, ChevronLeft, Eye,
 } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageSections'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
-import Badge from '../components/ui/Badge'
 
 // Custom Hooks
 import { useImageUpload } from '../hooks/useImageUpload'
@@ -230,7 +227,6 @@ export default function ReportComplaintPage() {
     return (
       <SuccessScreen
         complaintId={successData.complaintId}
-        category={successData.category}
         priority={successData.priority}
         onNewComplaint={handleReset}
       />

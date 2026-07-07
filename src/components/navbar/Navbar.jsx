@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import {
   Menu, X, Home, Bot, FileText, AlertCircle,
   ClipboardList, LayoutDashboard, Moon, Sun, Bell,
-  ChevronDown, LogIn, User, LogOut,
+  LogIn,
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { clsx } from 'clsx'
@@ -21,7 +21,7 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const { theme, toggleTheme } = useTheme()
-  const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   // Track scroll for navbar backdrop
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function Navbar() {
   // Close mobile menu on route change
   useEffect(() => {
     setIsOpen(false)
-  }, [location.pathname])
+  }, [pathname])
 
   return (
     <header

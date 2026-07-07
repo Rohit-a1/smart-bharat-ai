@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import {
   Bot, FileText, AlertCircle, ClipboardList, LayoutDashboard,
-  Github, Twitter, Linkedin, ExternalLink, Mail, Phone,
+  Github, Twitter, Linkedin, ExternalLink, Mail,
   MapPin, Shield, Heart,
 } from 'lucide-react'
 

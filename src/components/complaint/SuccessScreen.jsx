@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   CheckCircle2, Copy, Check, Share2, ClipboardList,
   Home, ArrowRight, Calendar, Bot,
@@ -17,8 +17,7 @@ const PRIORITY_COLORS = {
   Low:    { badge: 'neutral',     text: '🟢 Low — Logged for processing'         },
 }
 
-export default function SuccessScreen({ complaintId, category, priority, onNewComplaint }) {
-  const navigate   = useNavigate()
+export default function SuccessScreen({ complaintId, priority, onNewComplaint }) {
   const [copied, setCopied] = useState(false)
   const conf = PRIORITY_COLORS[priority] || PRIORITY_COLORS.Low
 

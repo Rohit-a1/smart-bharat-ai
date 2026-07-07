@@ -106,7 +106,7 @@ function Avatar({ role }) {
 }
 
 // ── Action bar (AI messages only) ─────────────────────────────────────────────
-function MessageActions({ content, messageId, onRetry }) {
+function MessageActions({ content, onRetry }) {
   const [copied,   setCopied]   = useState(false)
   const [liked,    setLiked]    = useState(false)
   const [disliked, setDisliked] = useState(false)
@@ -252,7 +252,6 @@ export default function ChatMessage({ message, onRetry, isLast }) {
           {!isUser && !isError && !isStreaming && content && (
             <MessageActions
               content={content}
-              messageId={message.id}
               onRetry={isLast ? onRetry : undefined}
             />
           )}

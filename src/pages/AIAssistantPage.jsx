@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Bot, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { Bot, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react'
 import { clsx } from 'clsx'
 
 import { useChat }         from '../hooks/useChat'
@@ -52,12 +52,10 @@ export default function AIAssistantPage() {
   const {
     messages,
     isLoading,
-    streamingId,
     sendUserMessage,
     retryLast,
     stopStreaming,
     clearChat,
-    copyMessage,
   } = useChat()
 
   const messagesEndRef  = useRef(null)
