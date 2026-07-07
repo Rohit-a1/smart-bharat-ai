@@ -54,6 +54,12 @@ function renderMarkdown(text) {
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr class="md-hr"/>')
 
+  // Markdown links: [text](url) - securely restricted to http/https
+  html = html.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s<>"]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>'
+  )
+
   // URLs → links (bare URLs in text)
   html = html.replace(
     /(?<![">])(https?:\/\/[^\s<>"]+)/g,

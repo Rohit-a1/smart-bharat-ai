@@ -4,7 +4,25 @@
 // API key: https://aistudio.google.com/app/apikey
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+// Retrieve API Key dynamically (checks sessionStorage first, then env)
+export function getGeminiApiKey() {
+  const customKey = sessionStorage.getItem('sb_custom_gemini_key')
+  if (customKey && customKey.trim()) return customKey.trim()
+  return import.meta.env.VITE_GEMINI_API_KEY
+}
+
+export function isGeminiApiConfigured() {
+  const key = getGeminiApiKey()
+  return !!key && key !== 'demo_gemini_key_replace_me' && key.trim().length > 0
+}
+
+export function setCustomGeminiApiKey(key) {
+  if (key && key.trim()) {
+    sessionStorage.setItem('sb_custom_gemini_key', key.trim())
+  } else {
+    sessionStorage.removeItem('sb_custom_gemini_key')
+  }
+}
 let GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash'
 if (GEMINI_MODEL.includes('1.5')) {
   GEMINI_MODEL = 'gemini-2.5-flash'
@@ -101,15 +119,16 @@ function buildContents(history, userMessage) {
  * @throws {GeminiError}
  */
 export async function sendMessage(userMessage, history = [], signal) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'demo_gemini_key_replace_me') {
+  const apiKey = getGeminiApiKey()
+  if (!apiKey || apiKey === 'demo_gemini_key_replace_me') {
     throw new GeminiError(
-      'Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your .env.local file.',
+      'Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your .env.local file or enter a custom key in the settings panel.',
       'NO_API_KEY',
       null,
     )
   }
 
-  const url      = `${BASE_URL}:generateContent?key=${GEMINI_API_KEY}`
+  const url      = `${BASE_URL}:generateContent?key=${apiKey}`
   const contents = buildContents(history, userMessage)
 
   let response
@@ -189,15 +208,16 @@ export async function sendMessage(userMessage, history = [], signal) {
  * @returns {Promise<string>}     - Full accumulated response
  */
 export async function streamMessage(userMessage, history = [], onChunk, signal) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'demo_gemini_key_replace_me') {
+  const apiKey = getGeminiApiKey()
+  if (!apiKey || apiKey === 'demo_gemini_key_replace_me') {
     throw new GeminiError(
-      'Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your .env.local file.',
+      'Gemini API key is not configured. Please add VITE_GEMINI_API_KEY to your .env.local file or enter a custom key in the settings panel.',
       'NO_API_KEY',
       null,
     )
   }
 
-  const url      = `${BASE_URL}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`
+  const url      = `${BASE_URL}:streamGenerateContent?alt=sse&key=${apiKey}`
   const contents = buildContents(history, userMessage)
 
   let response
@@ -295,7 +315,8 @@ export function getErrorMessage(error) {
  * @returns {Promise<{summary, priority, priorityReason, suggestedDepartment, keywords}|null>}
  */
 export async function analyzeComplaint({ title, description, category, location }) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'demo_gemini_key_replace_me') return null
+  const apiKey = getGeminiApiKey()
+  if (!apiKey || apiKey === 'demo_gemini_key_replace_me') return null
 
   const prompt = `You are a government grievance analyst for India. Analyze the following citizen complaint and return a JSON object only (no markdown, no explanation).
 
@@ -321,7 +342,7 @@ Priority rules:
 Respond with valid JSON only.`
 
   try {
-    const url = `${BASE_URL}:generateContent?key=${GEMINI_API_KEY}`
+    const url = `${BASE_URL}:generateContent?key=${apiKey}`
     const response = await fetch(url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -359,7 +380,8 @@ Respond with valid JSON only.`
  * @returns {Promise<Array<{name, description, benefits, eligibility: string[], documents: string[], process: string[], matchScore, category}>|null>}
  */
 export async function recommendSchemes({ age, gender, state, occupation, income, category }) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'demo_gemini_key_replace_me') {
+  const apiKey = getGeminiApiKey()
+  if (!apiKey || apiKey === 'demo_gemini_key_replace_me') {
     // Return mock schemes tailored to categories as a fallback
     return getLocalRecommendedSchemes({ age, gender, state, occupation, income, category })
   }
@@ -388,7 +410,7 @@ Each scheme object in the array must contain:
 Respond with a valid JSON array only.`
 
   try {
-    const url = `${BASE_URL}:generateContent?key=${GEMINI_API_KEY}`
+    const url = `${BASE_URL}:generateContent?key=${apiKey}`
     const response = await fetch(url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },

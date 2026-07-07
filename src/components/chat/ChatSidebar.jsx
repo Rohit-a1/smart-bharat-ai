@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from 'react'
+import { setCustomGeminiApiKey } from '../../services/gemini'
 import {
   Plus, Sparkles, Info, CheckCircle2,
   ChevronRight, Globe, BookOpen, AlertCircle, User,
@@ -18,8 +19,25 @@ const CAPABILITIES = [
   { icon: Smartphone,    label: 'Digital Services',      desc: 'DigiLocker, UMANG, CSC' },
 ]
 
-export default function ChatSidebar({ onNewChat, isApiConfigured }) {
+export default function ChatSidebar({ onNewChat, isApiConfigured, onKeyConfigured }) {
   const [showTips, setShowTips] = useState(false)
+  const [customKey, setCustomKey] = useState('')
+  const [showKeyInput, setShowKeyInput] = useState(false)
+
+  const handleSaveKey = (e) => {
+    e.preventDefault()
+    if (customKey.trim()) {
+      setCustomGeminiApiKey(customKey.trim())
+      setCustomKey('')
+      setShowKeyInput(false)
+      if (onKeyConfigured) onKeyConfigured()
+    }
+  }
+
+  const handleClearKey = () => {
+    setCustomGeminiApiKey(null)
+    if (onKeyConfigured) onKeyConfigured()
+  }
 
   return (
     <aside
@@ -38,7 +56,7 @@ export default function ChatSidebar({ onNewChat, isApiConfigured }) {
 
       {/* API Status */}
       <div
-        className={`glass-card p-3 flex items-start gap-2.5 ${
+        className={`glass-card p-3 flex flex-col gap-2 ${
           isApiConfigured
             ? 'border-accent-500/30 bg-accent-500/5'
             : 'border-yellow-500/30 bg-yellow-500/5'
@@ -46,35 +64,85 @@ export default function ChatSidebar({ onNewChat, isApiConfigured }) {
         role="status"
         aria-live="polite"
       >
-        <div
-          className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-            isApiConfigured ? 'bg-accent-400 animate-pulse' : 'bg-yellow-400'
-          }`}
-          aria-hidden="true"
-        />
-        <div>
-          <p className={`text-xs font-medium ${isApiConfigured ? 'text-accent-300' : 'text-yellow-300'}`}>
-            {isApiConfigured ? 'Gemini AI Connected' : 'API Key Required'}
-          </p>
-          <p className="text-surface-500 text-[11px] mt-0.5 leading-snug">
-            {isApiConfigured
-              ? 'Real-time AI responses active'
-              : 'Add VITE_GEMINI_API_KEY to .env.local'}
-          </p>
-          {!isApiConfigured && (
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-yellow-400 text-[11px] mt-1 hover:underline"
-              aria-label="Get Gemini API key (opens in new tab)"
-            >
-              <Key size={10} />
-              Get API Key
-              <ExternalLink size={9} />
-            </a>
-          )}
+        <div className="flex items-start gap-2.5">
+          <div
+            className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+              isApiConfigured ? 'bg-accent-400 animate-pulse' : 'bg-yellow-400'
+            }`}
+            aria-hidden="true"
+          />
+          <div className="flex-1">
+            <p className={`text-xs font-medium ${isApiConfigured ? 'text-accent-300' : 'text-yellow-300'}`}>
+              {isApiConfigured ? 'Gemini AI Connected' : 'API Key Required'}
+            </p>
+            <p className="text-surface-500 text-[11px] mt-0.5 leading-snug">
+              {isApiConfigured
+                ? (sessionStorage.getItem('sb_custom_gemini_key') ? 'Using custom browser API key' : 'Real-time AI responses active')
+                : 'Add VITE_GEMINI_API_KEY to .env.local or enter one below.'}
+            </p>
+          </div>
         </div>
+
+        {isApiConfigured ? (
+          sessionStorage.getItem('sb_custom_gemini_key') && (
+            <button
+              onClick={handleClearKey}
+              className="text-[10px] text-red-400 hover:text-red-300 underline self-start font-medium"
+              aria-label="Remove custom API key"
+            >
+              Remove Custom Key
+            </button>
+          )
+        ) : (
+          <div className="mt-1">
+            {!showKeyInput ? (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowKeyInput(true)}
+                  className="inline-flex items-center gap-1 text-primary-400 hover:text-primary-300 text-xs font-medium"
+                >
+                  <Key size={11} />
+                  Enter Key
+                </button>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-yellow-400 text-[11px] hover:underline"
+                  aria-label="Get Gemini API key (opens in new tab)"
+                >
+                  Get API Key
+                  <ExternalLink size={9} />
+                </a>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveKey} className="flex gap-1.5 mt-1.5 w-full">
+                <input
+                  type="password"
+                  placeholder="Paste AIzaSy..."
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  className="form-input text-[11px] py-1 px-2 flex-1 bg-surface-900 border-surface-700 text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="px-2.5 py-1 bg-accent-500 hover:bg-accent-600 text-white rounded-lg text-[11px] font-semibold transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowKeyInput(false)}
+                  className="px-2 py-1 bg-surface-800 hover:bg-surface-700 text-surface-400 rounded-lg text-[11px] transition-colors"
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Capabilities list */}

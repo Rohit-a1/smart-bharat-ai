@@ -15,9 +15,7 @@ import SuggestedPrompts    from '../components/chat/SuggestedPrompts'
 import ChatSidebar         from '../components/chat/ChatSidebar'
 import ChatHeader          from '../components/chat/ChatHeader'
 
-// Is the API configured? (key exists and not the placeholder)
-const API_KEY           = import.meta.env.VITE_GEMINI_API_KEY
-const IS_API_CONFIGURED = !!API_KEY && API_KEY !== 'demo_gemini_key_replace_me'
+import { isGeminiApiConfigured } from '../services/gemini'
 
 // ── Empty state (before first user message) ───────────────────────────────────
 function EmptyState({ onSelect }) {
@@ -57,6 +55,12 @@ export default function AIAssistantPage() {
     stopStreaming,
     clearChat,
   } = useChat()
+
+  const [isApiConfigured, setIsApiConfigured] = useState(isGeminiApiConfigured())
+
+  const handleKeyRefresh = useCallback(() => {
+    setIsApiConfigured(isGeminiApiConfigured())
+  }, [])
 
   const messagesEndRef  = useRef(null)
   const messagesAreaRef = useRef(null)
@@ -122,7 +126,8 @@ export default function AIAssistantPage() {
           <div className="w-72 h-full p-4 border-r border-surface-800/60 overflow-y-auto scrollbar-hidden">
             <ChatSidebar
               onNewChat={handleNewChat}
-              isApiConfigured={IS_API_CONFIGURED}
+              isApiConfigured={isApiConfigured}
+              onKeyConfigured={handleKeyRefresh}
             />
           </div>
         )}
@@ -147,7 +152,7 @@ export default function AIAssistantPage() {
         <ChatHeader
           onNewChat={handleNewChat}
           messageCount={userMessageCount}
-          isApiConfigured={IS_API_CONFIGURED}
+          isApiConfigured={isApiConfigured}
         />
 
         {/* ── Messages area ── */}
