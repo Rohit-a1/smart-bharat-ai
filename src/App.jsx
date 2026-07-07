@@ -17,7 +17,11 @@ function ScrollToTop() {
   useEffect(() => {
     // Don't scroll-to-top on the chat page
     if (pathname === '/ai-assistant') return
-    window.scrollTo({ top: 0, behavior: 'instant' })
+    try {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    } catch {
+      window.scrollTo(0, 0)
+    }
   }, [pathname])
   return null
 }

@@ -21,6 +21,7 @@ googleProvider.addScope('email')
 
 // Sign up with email & password
 export const signUpWithEmail = async (email, password, displayName) => {
+  if (!auth) throw new Error('Authentication service is currently unavailable.')
   const userCredential = await createUserWithEmailAndPassword(auth, email, password)
   await updateProfile(userCredential.user, { displayName })
   return userCredential.user
@@ -28,27 +29,36 @@ export const signUpWithEmail = async (email, password, displayName) => {
 
 // Sign in with email & password
 export const signInWithEmail = async (email, password) => {
+  if (!auth) throw new Error('Authentication service is currently unavailable.')
   const userCredential = await signInWithEmailAndPassword(auth, email, password)
   return userCredential.user
 }
 
 // Sign in with Google OAuth
 export const signInWithGoogle = async () => {
+  if (!auth) throw new Error('Authentication service is currently unavailable.')
   const result = await signInWithPopup(auth, googleProvider)
   return result.user
 }
 
 // Sign out
 export const signOutUser = async () => {
-  await signOut(auth)
+  if (auth) await signOut(auth)
 }
 
 // Send password reset email
 export const resetPassword = async (email) => {
+  if (!auth) throw new Error('Authentication service is currently unavailable.')
   await sendPasswordResetEmail(auth, email)
 }
 
 // Auth state listener
 export const onAuthChange = (callback) => {
+  if (!auth) {
+    // If Firebase Auth is not configured, run callback with null user immediately
+    callback(null)
+    return () => {}
+  }
   return onAuthStateChanged(auth, callback)
 }
+

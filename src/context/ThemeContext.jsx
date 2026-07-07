@@ -5,8 +5,12 @@ const ThemeContext = createContext(null)
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    const stored = localStorage.getItem('sb-theme')
-    return stored || 'dark'
+    try {
+      const stored = localStorage.getItem('sb-theme')
+      return stored || 'dark'
+    } catch {
+      return 'dark'
+    }
   })
 
   useEffect(() => {
@@ -16,7 +20,11 @@ export function ThemeProvider({ children }) {
     } else {
       root.classList.remove('dark')
     }
-    localStorage.setItem('sb-theme', theme)
+    try {
+      localStorage.setItem('sb-theme', theme)
+    } catch {
+      // ignore
+    }
   }, [theme])
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
