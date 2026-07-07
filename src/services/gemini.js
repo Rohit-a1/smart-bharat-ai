@@ -4,9 +4,12 @@
 // API key: https://aistudio.google.com/app/apikey
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GEMINI_API_KEY   = import.meta.env.VITE_GEMINI_API_KEY
-const GEMINI_MODEL     = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash'
-const BASE_URL         = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+let GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash'
+if (GEMINI_MODEL === 'gemini-1.5-flash' || GEMINI_MODEL.includes('1.5')) {
+  GEMINI_MODEL = 'gemini-2.5-flash'
+}
+const BASE_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`
 
 // ── Error types ───────────────────────────────────────────────────────────────
 export class GeminiError extends Error {
