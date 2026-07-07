@@ -345,3 +345,167 @@ Respond with valid JSON only.`
     return null
   }
 }
+
+// ── Government Schemes Recommendation ─────────────────────────────────────────
+/**
+ * Call Gemini to recommend central/state schemes based on user profile demographics.
+ * Returns a JSON array of recommended schemes.
+ *
+ * @param {{ age, gender, state, occupation, income, category }} profile
+ * @returns {Promise<Array<{name, description, benefits, eligibility: string[], documents: string[], process: string[], matchScore, category}>|null>}
+ */
+export async function recommendSchemes({ age, gender, state, occupation, income, category }) {
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'demo_gemini_key_replace_me') {
+    // Return mock schemes tailored to categories as a fallback
+    return getLocalRecommendedSchemes({ age, gender, state, occupation, income, category })
+  }
+
+  const prompt = `You are a Government Schemes Expert for India. Recommend 3 to 4 relevant central or state government schemes for a citizen with this profile:
+- Age: ${age} years old
+- Gender: ${gender}
+- State: ${state}
+- Occupation: ${occupation}
+- Annual Income: ₹${income}
+- Social Category: ${category} (e.g., General, OBC, SC, ST)
+
+Provide the recommendations in a structured JSON format only. Do not include markdown code fences, headers, or any conversational text. Return a raw JSON array of objects.
+
+Each scheme object in the array must contain:
+1. "name": The official scheme name (e.g. PM-KISAN, Ayushman Bharat)
+2. "description": A clear 1-2 sentence description
+3. "benefits": Detailed benefits (e.g., "₹6,000 direct transfer", "₹5 Lakh health cover")
+4. "eligibility": Array of 2-3 specific rules that match this citizen's profile
+5. "documents": Array of 3-5 specific document titles needed (e.g. ["Aadhaar Card", "Income Certificate"])
+6. "process": Array of 2-3 clear step-by-step instructions to apply
+7. "matchScore": A percentage match (number from 0 to 100) based on their profile criteria
+8. "category": Lowercase category tag ("agriculture", "health", "housing", "education", "business", "women", or "general")
+
+Respond with a valid JSON array only.`
+
+  try {
+    const url = `${BASE_URL}:generateContent?key=${GEMINI_API_KEY}`
+    const response = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature:     0.3,
+          maxOutputTokens: 1024,
+        },
+      }),
+    })
+
+    if (!response.ok) return getLocalRecommendedSchemes({ age, gender, state, occupation, income, category })
+
+    const data = await response.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!text) return getLocalRecommendedSchemes({ age, gender, state, occupation, income, category })
+
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    return JSON.parse(cleaned)
+  } catch (err) {
+    console.warn('[GeminiService] Schemes recommendation API failed, falling back:', err.message)
+    return getLocalRecommendedSchemes({ age, gender, state, occupation, income, category })
+  }
+}
+
+/**
+ * Local fallback recommendations if the API fails or is offline.
+ */
+function getLocalRecommendedSchemes({ age, gender, state, occupation, income, category }) {
+  const recommendations = []
+  const annualIncome = Number(income) || 0
+
+  // 1. PM-KISAN (Farmer check)
+  if (occupation.toLowerCase().includes('farm') || occupation.toLowerCase().includes('agri')) {
+    recommendations.push({
+      name: 'PM-KISAN (Pradhan Mantri Kisan Samman Nidhi)',
+      description: 'Direct financial assistance program giving income support to small and landholding farmer families across India.',
+      benefits: '₹6,000 per year, paid in three equal installments of ₹2,000 directly into bank accounts.',
+      eligibility: [
+        'Family must own cultivable land',
+        'Landholder name must match Aadhaar credentials',
+        'Not an income tax payer or government employee'
+      ],
+      documents: ['Aadhaar Card', 'Land Registry Documents (Khata/Khesra)', 'Bank Account Passbook'],
+      process: [
+        'Visit PM-KISAN portal (pmkisan.gov.in) and register under "New Farmer Registration"',
+        'Verify OTP on Aadhaar-linked mobile number',
+        'Upload land records and submit for State Nodal Officer approval'
+      ],
+      matchScore: 98,
+      category: 'agriculture'
+    })
+  }
+
+  // 2. Ayushman Bharat (Income-based check)
+  if (annualIncome <= 250000) {
+    recommendations.push({
+      name: 'Ayushman Bharat PM-JAY',
+      description: 'The world\'s largest government-funded health assurance scheme providing free secondary and tertiary care hospitalization.',
+      benefits: 'Cashless health coverage up to ₹5 Lakh per family per year for over 1,300 medical procedures.',
+      eligibility: [
+        `Household income of ₹${income} falls within vulnerable category thresholds`,
+        'Listed in the Socio-Economic Caste Census (SECC 2011) database',
+        'No active corporate health insurance'
+      ],
+      documents: ['Aadhaar Card / Ration Card', 'Income Certificate', 'PMJAY Letter or Gold Card'],
+      process: [
+        'Check eligibility on Mera PMJAY website or visit nearest Common Service Centre (CSC)',
+        'Present Aadhaar card to PMJAY counter at any empanelled hospital',
+        'Generate Ayushman Gold Card to access cashless treatment benefits'
+      ],
+      matchScore: 95,
+      category: 'health'
+    })
+  }
+
+  // 3. PM Mudra Yojana (Business or self-employed)
+  if (occupation.toLowerCase().includes('business') || occupation.toLowerCase().includes('self') || occupation.toLowerCase().includes('shop')) {
+    recommendations.push({
+      name: 'Pradhan Mantri MUDRA Yojana (PMMY)',
+      description: 'Collateral-free micro-loans to promote entrepreneurship, small shopkeepers, startups, and self-employed individuals.',
+      benefits: 'Business loans ranging from ₹50,000 (Shishu) up to ₹10 Lakh (Tarun) without collateral.',
+      eligibility: [
+        'Aged 18 years or older with viable business idea',
+        'Non-farm enterprise engaged in manufacturing, trading, or services',
+        'Satisfactory credit score rating'
+      ],
+      documents: ['Aadhaar/PAN Card', 'Proof of Business Address', 'Last 6 Months Bank Statement', 'Project report / estimate'],
+      process: [
+        'Apply online via Udyam Mitra portal or visit local public/private bank branch',
+        'Submit completed Mudra application form with business proposal details',
+        'Wait for bank verification and credit approval'
+      ],
+      matchScore: 92,
+      category: 'business'
+    })
+  }
+
+  // 4. Default: PM Suraksha Bima Yojana (General Safety Net)
+  if (recommendations.length < 2) {
+    recommendations.push({
+      name: 'Pradhan Mantri Suraksha Bima Yojana (PMSBY)',
+      description: 'High-value accidental death and disability insurance program covering citizens at a nominal annual fee.',
+      benefits: '₹2 Lakh coverage for accidental death or total disability; ₹1 Lakh for partial disability.',
+      eligibility: [
+        `Age of ${age} years lies inside the eligible 18–70 age range`,
+        'Active savings bank account with auto-debit consent',
+        'Nominee details provided'
+      ],
+      documents: ['Aadhaar Card', 'Bank Passbook / Account Details', 'Nominee details form'],
+      process: [
+        'Contact your savings bank branch or log in to internet banking',
+        'Fill up the PMSBY consent form and enable auto-debit for premium (₹20/year)',
+        'Receive policy receipt printout and keep details safe'
+      ],
+      matchScore: 85,
+      category: 'general'
+    })
+  }
+
+  return recommendations
+}
+

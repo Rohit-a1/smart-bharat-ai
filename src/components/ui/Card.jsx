@@ -53,3 +53,11 @@ export function CardContent({ children, className = '' }) {
     </div>
   )
 }
+
+export function CardFooter({ children, className = '' }) {
+  return (
+    <div className={clsx('mt-6 pt-4 border-t border-surface-800/40', className)}>
+      {children}
+    </div>
+  )
+}
