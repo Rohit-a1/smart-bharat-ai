@@ -44,7 +44,7 @@ const OCCUPATIONS = [
   'Retired / Pensioner',
 ]
 
-const SOCIAL_CATEGORIES = ['General', 'OBC', 'SC', 'ST']
+const SOCIAL_CATEGORIES = ['General', 'EWS', 'OBC', 'SC', 'ST']
 
 const CATEGORIES = [
   { id: 'all', label: 'All Schemes', icon: CheckCircle2 },
@@ -306,9 +306,25 @@ function AIRecommendedCard({ scheme }) {
                 ))}
               </ol>
             </div>
+
+            {/* Official application link */}
+            {scheme.link && (
+              <div className="pt-2">
+                <a
+                  href={scheme.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary w-full justify-center text-xs gap-1.5"
+                >
+                  Apply Online (Official Portal)
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+            )}
           </div>
         ) : null}
       </CardContent>
+
 
       <CardFooter className="pt-2 border-t border-surface-800/40">
         <button
@@ -343,6 +359,7 @@ export default function SchemesPage() {
 
   const [loading, setLoading] = useState(false)
   const [recommendations, setRecommendations] = useState(null)
+  const [recSearch, setRecSearch] = useState('')
   const [error, setError] = useState('')
 
   // ── Handle AI Recommendation ───────────────────────────────────────────────
@@ -356,6 +373,7 @@ export default function SchemesPage() {
     setLoading(true)
     setError('')
     setRecommendations(null)
+    setRecSearch('')
 
     try {
       const schemes = await recommendSchemes({
@@ -386,6 +404,7 @@ export default function SchemesPage() {
     setIncome('')
     setCategory('')
     setRecommendations(null)
+    setRecSearch('')
     setError('')
   }
 
@@ -684,48 +703,80 @@ export default function SchemesPage() {
             )}
 
             {/* Recommendations Results List */}
-            {recommendations && (
-              <div className="space-y-6">
-                {/* Results Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-900/50 border border-surface-800 px-5 py-3 rounded-2xl">
-                  <div>
-                    <h3 className="text-white font-bold text-base flex items-center gap-1.5">
-                      <Sparkles size={16} className="text-accent-400" />
-                      We Found {recommendations.length} Scheme Matches
-                    </h3>
-                    <p className="text-surface-500 text-xs">
-                      Filtered specifically for state: <span className="text-accent-400 font-semibold">{state}</span>
-                    </p>
+            {recommendations && (() => {
+              const query = recSearch.toLowerCase()
+              const filteredRecs = recommendations.filter((r) =>
+                r.name.toLowerCase().includes(query) ||
+                r.description.toLowerCase().includes(query) ||
+                r.benefits.toLowerCase().includes(query)
+              )
+
+              return (
+                <div className="space-y-6">
+                  {/* Results Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-900/50 border border-surface-800 px-5 py-3 rounded-2xl">
+                    <div>
+                      <h3 className="text-white font-bold text-base flex items-center gap-1.5">
+                        <Sparkles size={16} className="text-accent-400" />
+                        We Found {recommendations.length} Scheme Matches
+                      </h3>
+                      <p className="text-surface-500 text-xs">
+                        Filtered specifically for state: <span className="text-accent-400 font-semibold">{state}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleResetForm}
+                      className="btn-secondary text-xs"
+                    >
+                      <RefreshCw size={12} />
+                      New Finder Search
+                    </button>
                   </div>
-                  <button
-                    onClick={handleResetForm}
-                    className="btn-secondary text-xs"
-                  >
-                    <RefreshCw size={12} />
-                    New Finder Search
-                  </button>
-                </div>
 
-                {/* Scheme Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {recommendations.map((recScheme) => (
-                    <AIRecommendedCard key={recScheme.name} scheme={recScheme} />
-                  ))}
-                </div>
+                  {/* Recommendation list search bar */}
+                  <div className="flex-1">
+                    <Input
+                      id="rec-scheme-search"
+                      type="search"
+                      placeholder="Search within AI recommendations..."
+                      value={recSearch}
+                      onChange={(e) => setRecSearch(e.target.value)}
+                      prefix={<Search size={16} />}
+                      aria-label="Search within AI recommended schemes"
+                    />
+                  </div>
 
-                {/* Accuracy Disclaimer */}
-                <div className="flex gap-2.5 p-4 bg-primary-500/5 border border-primary-500/25 rounded-2xl text-xs text-surface-400 leading-relaxed">
-                  <Info size={16} className="text-primary-400 shrink-0 mt-0.5" />
-                  <span>
-                    Note: Schemes are recommended using Generative AI models according to official central & state eligibility criteria.
-                    Always consult the official welfare portal of <strong>{state}</strong> or visit your local CSC center to submit your actual application.
-                  </span>
+                  {/* Scheme Cards Grid */}
+                  {filteredRecs.length === 0 ? (
+                    <div className="glass-card p-12 text-center">
+                      <Search size={36} className="text-surface-600 mx-auto mb-3" aria-hidden="true" />
+                      <p className="text-surface-400 text-sm">
+                        No matches within recommendations for "{recSearch}".
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {filteredRecs.map((recScheme) => (
+                        <AIRecommendedCard key={recScheme.name} scheme={recScheme} />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Accuracy Disclaimer */}
+                  <div className="flex gap-2.5 p-4 bg-primary-500/5 border border-primary-500/25 rounded-2xl text-xs text-surface-400 leading-relaxed">
+                    <Info size={16} className="text-primary-400 shrink-0 mt-0.5" />
+                    <span>
+                      Note: Schemes are recommended using Generative AI models according to official central & state eligibility criteria.
+                      Always consult the official welfare portal of <strong>{state}</strong> or visit your local CSC center to submit your actual application.
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         )}
       </div>
     </main>
   )
 }
+

@@ -366,7 +366,7 @@ export async function recommendSchemes({ age, gender, state, occupation, income,
 - State: ${state}
 - Occupation: ${occupation}
 - Annual Income: ₹${income}
-- Social Category: ${category} (e.g., General, OBC, SC, ST)
+- Social Category: ${category} (SC/ST/OBC/General/EWS)
 
 Provide the recommendations in a structured JSON format only. Do not include markdown code fences, headers, or any conversational text. Return a raw JSON array of objects.
 
@@ -377,8 +377,9 @@ Each scheme object in the array must contain:
 4. "eligibility": Array of 2-3 specific rules that match this citizen's profile
 5. "documents": Array of 3-5 specific document titles needed (e.g. ["Aadhaar Card", "Income Certificate"])
 6. "process": Array of 2-3 clear step-by-step instructions to apply
-7. "matchScore": A percentage match (number from 0 to 100) based on their profile criteria
-8. "category": Lowercase category tag ("agriculture", "health", "housing", "education", "business", "women", or "general")
+7. "link": A URL string to the official government portal if known (e.g. "https://pmkisan.gov.in"). If not specifically known, use a search fallback URL like "https://www.google.com/search?q=official+portal+scheme+name" where "scheme+name" is URL-encoded.
+8. "matchScore": A percentage match (number from 0 to 100) based on their profile criteria
+9. "category": Lowercase category tag ("agriculture", "health", "housing", "education", "business", "women", or "general")
 
 Respond with a valid JSON array only.`
 
@@ -435,6 +436,7 @@ function getLocalRecommendedSchemes({ age, gender, state, occupation, income, ca
         'Verify OTP on Aadhaar-linked mobile number',
         'Upload land records and submit for State Nodal Officer approval'
       ],
+      link: 'https://pmkisan.gov.in',
       matchScore: 98,
       category: 'agriculture'
     })
@@ -457,6 +459,7 @@ function getLocalRecommendedSchemes({ age, gender, state, occupation, income, ca
         'Present Aadhaar card to PMJAY counter at any empanelled hospital',
         'Generate Ayushman Gold Card to access cashless treatment benefits'
       ],
+      link: 'https://pmjay.gov.in',
       matchScore: 95,
       category: 'health'
     })
@@ -479,6 +482,7 @@ function getLocalRecommendedSchemes({ age, gender, state, occupation, income, ca
         'Submit completed Mudra application form with business proposal details',
         'Wait for bank verification and credit approval'
       ],
+      link: 'https://mudra.org.in',
       matchScore: 92,
       category: 'business'
     })
@@ -501,6 +505,7 @@ function getLocalRecommendedSchemes({ age, gender, state, occupation, income, ca
         'Fill up the PMSBY consent form and enable auto-debit for premium (₹20/year)',
         'Receive policy receipt printout and keep details safe'
       ],
+      link: 'https://www.jansuraksha.gov.in',
       matchScore: 85,
       category: 'general'
     })
