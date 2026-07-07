@@ -283,3 +283,92 @@
   opacity: 0;
   transition: opacity 200ms ease;
 }
+
+/* ── Chat Markdown Styles ─────────────────────────────────────────────────── */
+/* Applied to the .chat-markdown wrapper in ChatMessage */
+
+.chat-markdown .md-p {
+  @apply mb-3 last:mb-0 text-sm text-surface-100 leading-relaxed;
+}
+
+.chat-markdown .md-h1 {
+  @apply text-lg font-display font-bold text-white mb-2 mt-3;
+}
+
+.chat-markdown .md-h2 {
+  @apply text-base font-display font-bold text-white mb-2 mt-3;
+}
+
+.chat-markdown .md-h3 {
+  @apply text-sm font-display font-semibold text-surface-200 mb-1.5 mt-2;
+}
+
+.chat-markdown .md-ul {
+  @apply pl-0 mb-3 space-y-1;
+  list-style: none;
+}
+
+.chat-markdown .md-ol {
+  @apply pl-0 mb-3 space-y-1;
+  list-style: none;
+}
+
+.chat-markdown .md-li {
+  @apply flex items-start gap-2 text-sm text-surface-200 leading-relaxed;
+}
+
+.chat-markdown .md-li::before {
+  content: '•';
+  @apply text-primary-400 shrink-0 mt-0.5 font-bold;
+}
+
+.chat-markdown .md-li-ordered {
+  @apply flex items-start gap-2 text-sm text-surface-200 leading-relaxed;
+}
+
+.chat-markdown .md-li-num {
+  @apply text-primary-400 font-semibold shrink-0 min-w-[1.25rem];
+}
+
+.chat-markdown .inline-code {
+  @apply bg-surface-700 text-primary-300 px-1.5 py-0.5 rounded text-xs font-mono;
+}
+
+.chat-markdown .code-block {
+  @apply bg-surface-900 border border-surface-700 rounded-xl p-4 my-3 overflow-x-auto;
+}
+
+.chat-markdown .code-block code {
+  @apply text-accent-300 text-xs font-mono leading-relaxed;
+}
+
+.chat-markdown .md-blockquote {
+  @apply border-l-2 border-primary-500/60 pl-3 my-2 text-surface-400 text-sm italic;
+}
+
+.chat-markdown .md-hr {
+  @apply border-t border-surface-700/50 my-4;
+}
+
+.chat-markdown .md-link {
+  @apply text-primary-400 hover:text-primary-300 underline underline-offset-2 transition-colors;
+  word-break: break-all;
+}
+
+.chat-markdown strong {
+  @apply font-semibold text-white;
+}
+
+.chat-markdown em {
+  @apply italic text-surface-300;
+}
+
+/* Smooth typing cursor pulse */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-cursor {
+  animation: blink 0.8s ease-in-out infinite;
+}

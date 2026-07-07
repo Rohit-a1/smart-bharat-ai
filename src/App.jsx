@@ -15,6 +15,8 @@ import NotFoundPage from './pages/NotFoundPage'
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => {
+    // Don't scroll-to-top on the chat page
+    if (pathname === '/ai-assistant') return
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [pathname])
   return null
@@ -37,8 +39,8 @@ function PageTitle() {
   return null
 }
 
-// ── Layout Wrapper ────────────────────────────────────────────────────────────
-function AppLayout({ children }) {
+// ── Standard layout (Navbar + Footer) ────────────────────────────────────────
+function StandardLayout({ children }) {
   return (
     <div className="flex flex-col min-h-screen">
       <a
@@ -56,6 +58,47 @@ function AppLayout({ children }) {
   )
 }
 
+// ── Chat layout (Navbar only, no footer, full-screen) ────────────────────────
+function ChatLayout({ children }) {
+  return (
+    <div className="flex flex-col min-h-screen overflow-hidden">
+      <Navbar />
+      <div className="flex-1 overflow-hidden">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ── Route renderer with layout selection ─────────────────────────────────────
+function AppRoutes() {
+  const { pathname } = useLocation()
+  const isChatPage = pathname === '/ai-assistant'
+
+  if (isChatPage) {
+    return (
+      <ChatLayout>
+        <Routes>
+          <Route path="/ai-assistant" element={<AIAssistantPage />} />
+        </Routes>
+      </ChatLayout>
+    )
+  }
+
+  return (
+    <StandardLayout>
+      <Routes>
+        <Route path="/"                  element={<HomePage />} />
+        <Route path="/schemes"           element={<SchemesPage />} />
+        <Route path="/report-complaint"  element={<ReportComplaintPage />} />
+        <Route path="/track-complaint"   element={<TrackComplaintPage />} />
+        <Route path="/dashboard"         element={<DashboardPage />} />
+        <Route path="*"                  element={<NotFoundPage />} />
+      </Routes>
+    </StandardLayout>
+  )
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -63,17 +106,7 @@ export default function App() {
       <BrowserRouter>
         <ScrollToTop />
         <PageTitle />
-        <AppLayout>
-          <Routes>
-            <Route path="/"                  element={<HomePage />} />
-            <Route path="/ai-assistant"      element={<AIAssistantPage />} />
-            <Route path="/schemes"           element={<SchemesPage />} />
-            <Route path="/report-complaint"  element={<ReportComplaintPage />} />
-            <Route path="/track-complaint"   element={<TrackComplaintPage />} />
-            <Route path="/dashboard"         element={<DashboardPage />} />
-            <Route path="*"                  element={<NotFoundPage />} />
-          </Routes>
-        </AppLayout>
+        <AppRoutes />
       </BrowserRouter>
     </ThemeProvider>
   )

@@ -1,340 +1,228 @@
-import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  Bot, Send, Mic, Paperclip, RotateCcw, Copy,
-  ThumbsUp, ThumbsDown, Sparkles, Info, ChevronDown,
-} from 'lucide-react'
-import { PageHeader } from '../components/ui/PageSections'
-import Badge from '../components/ui/Badge'
-import Button from '../components/ui/Button'
+// ─────────────────────────────────────────────────────────────────────────────
+// AIAssistantPage — ChatGPT-quality interface for Smart Bharat AI
+// Wires together: useChat hook, ChatMessage, ChatInput, SuggestedPrompts,
+//                 ChatSidebar, ChatHeader
+// ─────────────────────────────────────────────────────────────────────────────
 
-const SUGGESTED_PROMPTS = [
-  { text: 'PM-KISAN scheme ke liye eligibility kya hai?', tag: 'Agriculture' },
-  { text: 'How to apply for Ayushman Bharat health card?', tag: 'Healthcare' },
-  { text: 'Mudra loan ke liye documents kya chahiye?', tag: 'Business' },
-  { text: 'I want to file a complaint against municipal corporation', tag: 'Grievance' },
-  { text: 'PM Awas Yojana mein kaise register karein?', tag: 'Housing' },
-  { text: 'What is DigiLocker and how to use it?', tag: 'Digital' },
-]
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { Bot, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { clsx } from 'clsx'
 
-const INITIAL_MESSAGE = {
-  id: 'welcome',
-  role: 'assistant',
-  content: `**Namaste! I'm Smart Bharat AI 🙏🇮🇳**
+import { useChat }         from '../hooks/useChat'
+import ChatMessage         from '../components/chat/ChatMessage'
+import ChatInput           from '../components/chat/ChatInput'
+import SuggestedPrompts    from '../components/chat/SuggestedPrompts'
+import ChatSidebar         from '../components/chat/ChatSidebar'
+import ChatHeader          from '../components/chat/ChatHeader'
 
-I'm your personal guide to all Indian government services. I can help you with:
+// Is the API configured? (key exists and not the placeholder)
+const API_KEY           = import.meta.env.VITE_GEMINI_API_KEY
+const IS_API_CONFIGURED = !!API_KEY && API_KEY !== 'demo_gemini_key_replace_me'
 
-• 🏛️ **Government Schemes** – Find schemes you're eligible for
-• 📋 **Complaint Filing** – Guide you through the grievance process  
-• 📄 **Documents** – Tell you what's required for any service
-• 🏥 **Healthcare** – Ayushman Bharat, CGHS, and more
-• 🌾 **Agriculture** – PM-KISAN, Kisan Credit Card, and more
+// ── Empty state (before first user message) ───────────────────────────────────
+function EmptyState({ onSelect }) {
+  return (
+    <div className="flex flex-col items-center justify-center flex-1 px-4 py-12 text-center">
+      {/* Logo glow */}
+      <div className="relative mb-6">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center shadow-glow-primary mx-auto animate-float">
+          <Bot size={36} className="text-white" />
+        </div>
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary-500/20 to-accent-500/20 blur-2xl" aria-hidden="true" />
+      </div>
 
-You can ask me in **English or Hindi (Hinglish)**. How can I help you today?`,
-  timestamp: new Date(),
+      <h1 className="text-2xl md:text-3xl font-display font-bold text-white mb-3">
+        Smart Bharat AI
+      </h1>
+      <p className="text-surface-400 max-w-sm text-sm leading-relaxed mb-8">
+        Your AI guide to Indian government services, schemes, and grievances.{' '}
+        <span className="text-primary-400 font-medium">Ask anything in English or हिंदी.</span>
+      </p>
+
+      {/* Suggested prompts in empty state */}
+      <div className="w-full max-w-2xl">
+        <SuggestedPrompts onSelect={onSelect} />
+      </div>
+    </div>
+  )
 }
 
-function MessageBubble({ message, onCopy, onLike, onDislike }) {
-  const isUser = message.role === 'user'
+// ── Main Page ─────────────────────────────────────────────────────────────────
+export default function AIAssistantPage() {
+  const {
+    messages,
+    isLoading,
+    streamingId,
+    sendUserMessage,
+    retryLast,
+    stopStreaming,
+    clearChat,
+    copyMessage,
+  } = useChat()
 
-  // Simple markdown-like formatting
-  const formatContent = (text) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/•/g, '<span class="text-primary-400">•</span>')
-      .replace(/\n/g, '<br />')
-  }
+  const messagesEndRef  = useRef(null)
+  const messagesAreaRef = useRef(null)
+  const [sidebarOpen,  setSidebarOpen]  = useState(true)
+  const [atBottom,     setAtBottom]     = useState(true)
+  const [showPrompts,  setShowPrompts]  = useState(true)
+
+  // Show prompts only when conversation only has the welcome message
+  const hasUserMessages = messages.some((m) => m.role === 'user')
+  useEffect(() => {
+    setShowPrompts(!hasUserMessages)
+  }, [hasUserMessages])
+
+  // ── Auto-scroll ──────────────────────────────────────────────────────────
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' })
+  }, [])
+
+  useEffect(() => {
+    if (atBottom) scrollToBottom()
+  }, [messages, isLoading, atBottom, scrollToBottom])
+
+  // Track if user scrolled away from bottom
+  const handleScroll = useCallback(() => {
+    const el = messagesAreaRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setAtBottom(distFromBottom < 80)
+  }, [])
+
+  // ── Send ─────────────────────────────────────────────────────────────────
+  const handleSend = useCallback((text) => {
+    sendUserMessage(text)
+    setAtBottom(true)
+    setTimeout(() => scrollToBottom('smooth'), 100)
+  }, [sendUserMessage, scrollToBottom])
+
+  // ── New chat ─────────────────────────────────────────────────────────────
+  const handleNewChat = useCallback(() => {
+    clearChat()
+    setAtBottom(true)
+    setShowPrompts(true)
+  }, [clearChat])
+
+  // User message count (for header)
+  const userMessageCount = messages.filter((m) => m.role === 'user').length
 
   return (
-    <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'} animate-slide-up`}>
-      {!isUser && (
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center shrink-0 mt-1">
-          <Bot size={16} className="text-white" />
-        </div>
-      )}
-
-      <div className={`max-w-[80%] md:max-w-[70%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-        <div
-          className={
-            isUser
-              ? 'bg-primary-500/20 border border-primary-500/30 rounded-2xl rounded-tr-sm px-4 py-3'
-              : 'bg-surface-800/60 border border-surface-700 rounded-2xl rounded-tl-sm px-4 py-3'
-          }
-        >
-          <div
-            className="text-sm text-surface-100 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: formatContent(message.content) }}
-          />
-        </div>
-
-        {/* Actions (AI messages only) */}
-        {!isUser && (
-          <div className="flex items-center gap-2 px-1">
-            <button
-              onClick={() => onCopy(message.content)}
-              className="p-1 text-surface-600 hover:text-surface-300 transition-colors"
-              aria-label="Copy message"
-            >
-              <Copy size={12} />
-            </button>
-            <button
-              onClick={() => onLike(message.id)}
-              className="p-1 text-surface-600 hover:text-accent-400 transition-colors"
-              aria-label="Helpful"
-            >
-              <ThumbsUp size={12} />
-            </button>
-            <button
-              onClick={() => onDislike(message.id)}
-              className="p-1 text-surface-600 hover:text-red-400 transition-colors"
-              aria-label="Not helpful"
-            >
-              <ThumbsDown size={12} />
-            </button>
-            <span className="text-surface-600 text-xs">
-              {message.timestamp?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+    <div
+      className="flex h-screen bg-surface-950 overflow-hidden"
+      style={{ paddingTop: '4rem' }} // account for fixed Navbar height
+    >
+      {/* ── Sidebar ── */}
+      <div
+        className={clsx(
+          'shrink-0 transition-all duration-300 ease-in-out overflow-hidden',
+          sidebarOpen ? 'w-72' : 'w-0',
+          'hidden lg:block'
+        )}
+        aria-hidden={!sidebarOpen}
+      >
+        {sidebarOpen && (
+          <div className="w-72 h-full p-4 border-r border-surface-800/60 overflow-y-auto scrollbar-hidden">
+            <ChatSidebar
+              onNewChat={handleNewChat}
+              isApiConfigured={IS_API_CONFIGURED}
+            />
           </div>
         )}
       </div>
 
-      {isUser && (
-        <div className="w-8 h-8 rounded-xl bg-primary-500/20 border border-primary-500/30 flex items-center justify-center shrink-0 mt-1">
-          <span className="text-primary-400 text-xs font-bold">U</span>
-        </div>
-      )}
-    </div>
-  )
-}
+      {/* ── Main chat panel ── */}
+      <main
+        className="flex-1 flex flex-col min-w-0 relative"
+        aria-label="AI chat interface"
+      >
+        {/* Toggle sidebar button */}
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className="hidden lg:flex absolute top-3 left-3 z-10 p-1.5 rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all"
+          aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          aria-expanded={sidebarOpen}
+        >
+          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+        </button>
 
-function TypingIndicator() {
-  return (
-    <div className="flex gap-3 justify-start animate-fade-in" role="status" aria-label="AI is typing">
-      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center shrink-0">
-        <Bot size={16} className="text-white" />
-      </div>
-      <div className="bg-surface-800/60 border border-surface-700 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-1.5">
-        {[0, 150, 300].map((delay) => (
-          <span
-            key={delay}
-            className="w-2 h-2 bg-primary-400 rounded-full animate-bounce"
-            style={{ animationDelay: `${delay}ms` }}
-            aria-hidden="true"
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
+        {/* Chat header */}
+        <ChatHeader
+          onNewChat={handleNewChat}
+          messageCount={userMessageCount}
+          isApiConfigured={IS_API_CONFIGURED}
+        />
 
-export default function AIAssistantPage() {
-  const [messages, setMessages] = useState([INITIAL_MESSAGE])
-  const [inputValue, setInputValue] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
-  const [showPrompts, setShowPrompts] = useState(true)
-  const messagesEndRef = useRef(null)
-  const inputRef = useRef(null)
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isTyping])
-
-  const handleSendMessage = async (text = inputValue) => {
-    if (!text.trim()) return
-
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setInputValue('')
-    setIsTyping(true)
-    setShowPrompts(false)
-
-    // Simulate AI response (replace with real Gemini API call)
-    setTimeout(() => {
-      const aiMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `Thank you for your question!\n\n**[AI Response Placeholder]**\n\nThis is where the Gemini AI response will appear. Configure your \`VITE_GEMINI_API_KEY\` in the \`.env.local\` file to enable real AI responses.\n\nYour question was: *"${text}"*`,
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, aiMessage])
-      setIsTyping(false)
-    }, 1500)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
-  const handleCopy = (text) => {
-    navigator.clipboard.writeText(text)
-  }
-
-  const handleReset = () => {
-    setMessages([INITIAL_MESSAGE])
-    setShowPrompts(true)
-    inputRef.current?.focus()
-  }
-
-  return (
-    <main className="min-h-screen bg-surface-950 flex flex-col">
-      <PageHeader
-        title="AI Assistant"
-        subtitle="Get instant answers about government services, schemes, and grievances — in English or Hindi."
-        breadcrumbs={[{ label: 'AI Assistant' }]}
-        badge="Powered by Gemini AI"
-        actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleReset}
-            aria-label="Start new conversation"
-          >
-            <RotateCcw size={14} />
-            New Chat
-          </Button>
-        }
-      />
-
-      <div className="page-container flex-1 py-8 flex flex-col lg:flex-row gap-6">
-        {/* ── Sidebar ── */}
-        <aside className="lg:w-64 shrink-0 space-y-4" aria-label="AI assistant information">
-          <div className="glass-card p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Sparkles size={16} className="text-primary-400" />
-              <h2 className="font-semibold text-white text-sm">AI Capabilities</h2>
-            </div>
-            <ul className="space-y-2 text-xs text-surface-400" role="list">
-              {[
-                'Scheme Eligibility Check',
-                'Document Requirements',
-                'Application Guidance',
-                'Complaint Assistance',
-                'Multi-language Support',
-                'Real-time Information',
-              ].map((cap) => (
-                <li key={cap} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-400" aria-hidden="true" />
-                  {cap}
-                </li>
+        {/* ── Messages area ── */}
+        <div
+          ref={messagesAreaRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto scrollbar-hidden"
+          role="log"
+          aria-label="Chat conversation"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
+          {/* Empty state OR message list */}
+          {!hasUserMessages ? (
+            <EmptyState onSelect={handleSend} />
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 w-full">
+              {/* Welcome message (always first) */}
+              {messages.map((message, idx) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  isLast={idx === messages.length - 1}
+                  onRetry={retryLast}
+                />
               ))}
-            </ul>
-          </div>
 
-          <div className="glass-card p-4">
-            <div className="flex items-start gap-2">
-              <Info size={14} className="text-primary-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-surface-400 leading-relaxed">
-                Smart Bharat AI provides information only. For official matters, always
-                consult the relevant government department.
-              </p>
+              {/* Scroll anchor */}
+              <div ref={messagesEndRef} className="h-1" />
             </div>
-          </div>
-        </aside>
+          )}
+        </div>
 
-        {/* ── Chat Area ── */}
-        <div className="flex-1 flex flex-col glass-card overflow-hidden" style={{ minHeight: '60vh' }}>
-          {/* Messages */}
-          <div
-            className="flex-1 overflow-y-auto p-6 space-y-6"
-            role="log"
-            aria-label="Conversation history"
-            aria-live="polite"
-            style={{ maxHeight: 'calc(100vh - 340px)' }}
+        {/* Scroll-to-bottom button */}
+        {!atBottom && (
+          <button
+            onClick={() => { setAtBottom(true); scrollToBottom() }}
+            className="absolute bottom-32 right-6 p-2.5 rounded-full bg-primary-500 hover:bg-primary-600 text-white shadow-glow-primary transition-all animate-scale-in z-10"
+            aria-label="Scroll to latest message"
           >
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                onCopy={handleCopy}
-                onLike={(id) => console.log('Liked:', id)}
-                onDislike={(id) => console.log('Disliked:', id)}
-              />
-            ))}
+            <ChevronRight size={18} className="rotate-90" />
+          </button>
+        )}
 
-            {isTyping && <TypingIndicator />}
-            <div ref={messagesEndRef} />
+        {/* ── Suggested prompts (after welcome, before first user msg) ── */}
+        {showPrompts && hasUserMessages === false && (
+          <div className="max-w-3xl mx-auto w-full">
+            {/* Handled inside EmptyState — no duplicate needed */}
           </div>
+        )}
 
-          {/* Suggested Prompts */}
-          {showPrompts && (
-            <div className="px-6 pb-2">
-              <p className="text-xs text-surface-500 mb-2 font-medium">Try asking:</p>
-              <div className="flex flex-wrap gap-2">
-                {SUGGESTED_PROMPTS.map(({ text, tag }) => (
-                  <button
-                    key={text}
-                    onClick={() => handleSendMessage(text)}
-                    className="text-xs px-3 py-1.5 rounded-full bg-surface-800 hover:bg-primary-500/20 text-surface-300 hover:text-primary-300 border border-surface-700 hover:border-primary-500/40 transition-all duration-200"
-                    aria-label={`Suggested: ${text}`}
-                  >
-                    {text}
-                  </button>
-                ))}
-              </div>
+        {/* ── Input section ── */}
+        <div className="max-w-3xl mx-auto w-full">
+          {/* Prompts shown just above input after first message */}
+          {!showPrompts && !isLoading && messages.length < 4 && (
+            <div className="px-4 pt-2">
+              <SuggestedPrompts onSelect={handleSend} />
             </div>
           )}
 
-          {/* Input Area */}
-          <div className="p-4 border-t border-surface-800">
-            <form
-              className="flex gap-3 items-end"
-              onSubmit={(e) => { e.preventDefault(); handleSendMessage() }}
-              aria-label="Message input form"
-            >
-              <div className="flex-1 relative">
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about any government service or scheme..."
-                  rows={1}
-                  className="form-input resize-none pr-10 min-h-[44px]"
-                  style={{ maxHeight: '120px' }}
-                  aria-label="Message input"
-                />
-              </div>
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  className="p-2.5 rounded-xl text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all"
-                  aria-label="Attach file"
-                >
-                  <Paperclip size={18} />
-                </button>
-                <button
-                  type="button"
-                  className="p-2.5 rounded-xl text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all"
-                  aria-label="Voice input"
-                >
-                  <Mic size={18} />
-                </button>
-                <button
-                  type="submit"
-                  disabled={!inputValue.trim() || isTyping}
-                  className="p-2.5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Send message"
-                >
-                  <Send size={18} />
-                </button>
-              </div>
-            </form>
-            <p className="text-xs text-surface-600 mt-2 text-center">
-              Press Enter to send • Shift+Enter for new line
-            </p>
-          </div>
+          <ChatInput
+            onSend={handleSend}
+            onStop={stopStreaming}
+            isLoading={isLoading}
+            disabled={false}
+          />
         </div>
+      </main>
+
+      {/* ── Mobile sidebar overlay ── */}
+      <div className="lg:hidden">
+        {/* Mobile: sidebar as bottom sheet or drawer could be added here */}
       </div>
-    </main>
+    </div>
   )
 }
